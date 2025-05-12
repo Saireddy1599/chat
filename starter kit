@@ -1,0 +1,148 @@
+// 📦 Ghibli Chat App - Starter Kit
+// Flutter + Firebase + Ghibli UI Elements
+
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(GhibliChatApp());
+}
+
+class GhibliChatApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Ghibli Chat',
+      theme: ThemeData(
+        primarySwatch: Colors.green,
+        fontFamily: 'GhibliFont', // Custom Ghibli-style font
+        scaffoldBackgroundColor: Color(0xFFEFF5E2), // Soft watercolor background
+      ),
+      home: AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasData) {
+          return ChatScreen();
+        } else {
+          return LoginScreen();
+        }
+      },
+    );
+  }
+}
+
+class LoginScreen extends StatelessWidget {
+  // Simple login screen (Google sign-in recommended later)
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            await FirebaseAuth.instance.signInAnonymously();
+          },
+          child: Text('Enter Ghibli Chat'),
+        ),
+      ),
+    );
+  }
+}
+
+class ChatScreen extends StatelessWidget {
+  final TextEditingController _controller = TextEditingController();
+
+  void sendMessage() {
+    if (_controller.text.trim().isNotEmpty) {
+      FirebaseFirestore.instance.collection('messages').add({
+        'text': _controller.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      _controller.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundImage: AssetImage('assets/totoro_avatar.png'),
+            ),
+            SizedBox(width: 10),
+            Text('Ghibli Chat'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('messages')
+                  .orderBy('timestamp', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                final messages = snapshot.data!.docs;
+                return ListView.builder(
+                  reverse: true,
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    return ListTile(
+                      leading: Image.asset('assets/soot_sprite.png', width: 30),
+                      title: Text(msg['text'] ?? ''),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      hintText: 'Send a magical message...',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Image.asset('assets/calcifer_send.png', width: 30),
+                  onPressed: sendMessage,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 📂 Assets to prepare:
+// - assets/totoro_avatar.png (AppBar avatar)
+// - assets/soot_sprite.png (Chat message icon)
+// - assets/calcifer_send.png (Send button icon)
+// - Custom GhibliFont.ttf (font folder)
